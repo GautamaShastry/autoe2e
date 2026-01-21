@@ -1,0 +1,63 @@
+---
+# Bring up Docker Compose environment and wait for readiness
+- name: Start E2E environment
+  hosts: localhost
+  gather_facts: false
+  vars:
+    compose_file: "docker-compose.yml"
+    run_id: "default"
+    health_checks: []
+    timeout_secs: 120
+    env_file: ""
+
+  tasks:
+    - name: Validate compose file exists
+      ansible.builtin.stat:
+        path: "{{ compose_file }}"
+      register: compose_stat
+
+    - name: Fail if compose file missing
+      ansible.builtin.fail:
+        msg: "Compose file not found: {{ compose_file }}"
+      when: not compose_stat.stat.exists
+
+    - name: Start Docker Compose stack
+      ansible.builtin.command:
+        cmd: >
+          docker compose -f {{ compose_file }}
+          -p autoe2e-{{ run_id }}
+          up -d --build --wait
+      register: compose_up
+      changed_when: true
+
+    - name: Display compose output
+      ansible.builtin.debug:
+        var: compose_up.stdout_lines
+      when: compose_up.stdout_lines | length > 0
+
+    - name: Wait for HTTP health checks
+      ansible.builtin.uri:
+        url: "{{ item.url }}"
+        status_code: "{{ item.expected_status | default(200) }}"
+        timeout: 10
+      register: http_check
+      until: http_check.status == (item.expected_status | default(200))
+      retries: "{{ (timeout_secs / 5) | int }}"
+      delay: 5
+      loop: "{{ health_checks | selectattr('type', 'equalto', 'http') | list }}"
+      loop_control:
+        label: "{{ item.url }}"
+
+    - name: Wait for TCP health checks
+      ansible.builtin.wait_for:
+        host: "{{ item.host }}"
+        port: "{{ item.port }}"
+        timeout: "{{ timeout_secs }}"
+        state: started
+      loop: "{{ health_checks | selectattr('type', 'equalto', 'tcp') | list }}"
+      loop_control:
+        label: "{{ item.host }}:{{ item.port }}"
+
+    - name: Environment ready
+      ansible.builtin.debug:
+        msg: "All health checks passed. Environment is ready!"

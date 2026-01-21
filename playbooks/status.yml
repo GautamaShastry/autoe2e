@@ -1,0 +1,32 @@
+---
+# Show status of Docker Compose environment
+- name: Show E2E environment status
+  hosts: localhost
+  gather_facts: false
+  vars:
+    compose_file: "docker-compose.yml"
+
+  tasks:
+    - name: Get container status
+      ansible.builtin.command:
+        cmd: "docker compose -f {{ compose_file }} ps -a"
+      register: container_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display container status
+      ansible.builtin.debug:
+        msg: "{{ container_status.stdout_lines }}"
+
+    - name: Get container health
+      ansible.builtin.command:
+        cmd: >
+          docker ps --filter "label=com.docker.compose.project"
+          --format "table {{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}\t{{ '{{' }}.Ports{{ '}}' }}"
+      register: health_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display health status
+      ansible.builtin.debug:
+        msg: "{{ health_status.stdout_lines }}"

@@ -1,0 +1,50 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -e .
+          ansible-galaxy collection install community.docker
+
+      - name: Run E2E tests
+        run: |
+          autoe2e run -f demo/spec.yml --suite all --artifacts-dir artifacts
+        continue-on-error: true
+        id: e2e
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-artifacts
+          path: artifacts/
+          retention-days: 7
+
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: artifacts/reports/junit.xml
+
+      - name: Check test result
+        if: steps.e2e.outcome == 'failure'
+        run: exit 1

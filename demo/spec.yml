@@ -1,0 +1,35 @@
+# AutoE2E specification for demo stack
+compose_file: demo/docker-compose.yml
+base_url: http://localhost:8080
+
+# Health checks to wait for before running tests
+health_checks:
+  - type: http
+    url: http://localhost:8080/health
+    expected_status: 200
+  - type: http
+    url: http://localhost:8080/ready
+    expected_status: 200
+  - type: tcp
+    host: localhost
+    port: 5432
+  - type: tcp
+    host: localhost
+    port: 6379
+
+# Test suite markers
+suites:
+  smoke: smoke
+  regression: regression
+
+# Services to collect logs from (empty = all)
+services: []
+
+# Global timeout for readiness checks (seconds)
+timeout: 120
+
+# Artifact collection settings
+artifacts:
+  collect: on_fail  # on_fail | always
+  include_services: []
+  exclude_services: []

@@ -1,0 +1,84 @@
+---
+# Collect logs and artifacts for debugging
+- name: Collect E2E artifacts
+  hosts: localhost
+  gather_facts: false
+  vars:
+    compose_file: "docker-compose.yml"
+    run_id: "default"
+    artifacts_dir: "artifacts"
+    services: []
+
+  tasks:
+    - name: Create artifact directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ artifacts_dir }}/logs"
+        - "{{ artifacts_dir }}/reports"
+        - "{{ artifacts_dir }}/env"
+        - "{{ artifacts_dir }}/compose"
+
+    - name: Get Docker version
+      ansible.builtin.command:
+        cmd: docker version --format json
+      register: docker_version
+      changed_when: false
+
+    - name: Get Docker Compose version
+      ansible.builtin.command:
+        cmd: docker compose version --short
+      register: compose_version
+      changed_when: false
+
+    - name: Save environment metadata
+      ansible.builtin.copy:
+        content: |
+          {
+            "run_id": "{{ run_id }}",
+            "docker_version": {{ docker_version.stdout }},
+            "compose_version": "{{ compose_version.stdout }}",
+            "collected_at": "{{ ansible_date_time.iso8601 | default(lookup('pipe', 'date -Iseconds')) }}"
+          }
+        dest: "{{ artifacts_dir }}/env/metadata.json"
+        mode: "0644"
+
+    - name: Copy compose file
+      ansible.builtin.copy:
+        src: "{{ compose_file }}"
+        dest: "{{ artifacts_dir }}/compose/docker-compose.yml"
+        remote_src: true
+        mode: "0644"
+
+    - name: Get list of services
+      ansible.builtin.command:
+        cmd: "docker compose -f {{ compose_file }} -p autoe2e-{{ run_id }} ps --format json"
+      register: services_list
+      changed_when: false
+      failed_when: false
+
+    - name: Collect logs from all services
+      ansible.builtin.shell:
+        cmd: >
+          docker compose -f {{ compose_file }}
+          -p autoe2e-{{ run_id }}
+          logs --no-color {{ item if services | length > 0 else '' }}
+          > {{ artifacts_dir }}/logs/{{ item | default('all') }}.log 2>&1
+      loop: "{{ services if services | length > 0 else ['all'] }}"
+      changed_when: true
+      failed_when: false
+
+    - name: Save container states
+      ansible.builtin.shell:
+        cmd: >
+          docker compose -f {{ compose_file }}
+          -p autoe2e-{{ run_id }}
+          ps -a > {{ artifacts_dir }}/env/container_states.txt 2>&1
+      changed_when: true
+      failed_when: false
+
+    - name: Artifacts collected
+      ansible.builtin.debug:
+        msg: "Artifacts saved to {{ artifacts_dir }}"

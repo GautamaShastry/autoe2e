@@ -1,0 +1,36 @@
+---
+# Tear down Docker Compose environment
+- name: Stop E2E environment
+  hosts: localhost
+  gather_facts: false
+  vars:
+    compose_file: "docker-compose.yml"
+    run_id: "default"
+    remove_volumes: true
+
+  tasks:
+    - name: Stop Docker Compose stack
+      ansible.builtin.command:
+        cmd: >
+          docker compose -f {{ compose_file }}
+          -p autoe2e-{{ run_id }}
+          down {{ '--volumes' if remove_volumes else '' }} --remove-orphans
+      register: compose_down
+      changed_when: true
+      ignore_errors: true
+
+    - name: Display teardown output
+      ansible.builtin.debug:
+        var: compose_down.stdout_lines
+      when: compose_down.stdout_lines | default([]) | length > 0
+
+    - name: Remove project network if exists
+      ansible.builtin.command:
+        cmd: "docker network rm autoe2e-{{ run_id }}_default"
+      register: network_rm
+      changed_when: network_rm.rc == 0
+      failed_when: false
+
+    - name: Cleanup complete
+      ansible.builtin.debug:
+        msg: "Environment teardown complete"

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "autoe2e"
+version = "0.1.0"
+description = "One-command E2E testing with containerized environments"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.1",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "pytest>=8.0",
+    "pytest-xdist>=3.5",
+    "requests>=2.31",
+    "ansible-core>=2.15",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest-cov>=4.0",
+    "black>=24.0",
+    "ruff>=0.3",
+]
+
+[project.scripts]
+autoe2e = "autoe2e.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+markers = [
+    "smoke: quick sanity checks",
+    "regression: full test suite",
+]
+testpaths = ["tests"]
