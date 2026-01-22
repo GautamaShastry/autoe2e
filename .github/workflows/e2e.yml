@@ -43,7 +43,7 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
-          files: artifacts/reports/junit.xml
+          files: artifacts/**/junit.xml
 
       - name: Check test result
         if: steps.e2e.outcome == 'failure'
